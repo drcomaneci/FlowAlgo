@@ -1,0 +1,77 @@
+#!/usr/bin/python
+
+"""
+This example shows how to add an interface (for example a real
+hardware interface) to a network after the network is created.
+"""
+
+import re, sys
+
+from mininet.cli import CLI
+from mininet.log import setLogLevel, info, error
+from mininet.net import Mininet
+from mininet.node import RemoteController
+from mininet.link import Intf
+from mininet.topo import Topo
+from mininet.util import quietRun
+
+def checkIntf( intf ):
+    "Make sure intf exists and is not configured."
+    if ( ' %s:' % intf ) not in quietRun( 'ip link show' ):
+        error( 'Error:', intf, 'does not exist!\n' )
+        exit( 1 )
+    ips = re.findall( r'\d+\.\d+\.\d+\.\d+', quietRun( 'ifconfig ' + intf ) )
+    if ips:
+        error( 'Error:', intf, 'has an IP address,'
+               'and is probably in use!\n' )
+        exit( 1 )
+
+class TwinSwitchTopo( Topo ):
+    "TwinSwitch topology."
+
+    def __init__( self, nlinks=1):
+        "Create custom topo."
+
+        # Initialize topology
+        Topo.__init__( self )
+
+        # Add hosts and switches
+        leftSwitch = self.addSwitch( 's1' )
+        rightSwitch = self.addSwitch( 's2' )
+
+        # Add links
+        for i in range(1,nlinks):
+            s = self.addSwitch('sl%s'%i)
+#	    self.addLink( leftSwitch, s)
+#            self.addLink( s,rightSwitch)
+
+
+if __name__ == '__main__':
+    setLogLevel( 'info' )
+
+    # try to get hw intf from the command line; by default, use eth1
+    intfName = sys.argv[ 1 ] if len( sys.argv ) > 1 else 'eth1'
+    intf2Name = sys.argv[ 2 ] if len( sys.argv ) > 2 else 'eth2'
+    info( '*** Connecting to hw intf: %s\n' % intfName )
+    info( '*** Connecting to hw intf: %s\n' % intf2Name )
+
+    info( '*** Checking', intfName,', ',intf2Name,  '\n' )
+    checkIntf( intfName )
+    checkIntf( intf2Name )
+
+    info( '*** Creating network\n' )
+    net = Mininet( topo=TwinSwitchTopo(nlinks=8), controller=RemoteController )
+
+    switch1 = net.switches[ 0 ]
+    switch2 = net.switches[ 1 ] 
+    info( '*** Adding hardware interfaces', intfName,', ',intf2Name, 'to switch',
+          switch1.name, '\n' )
+    _intf = Intf( intfName, node=switch1 )
+    _intf2 = Intf( intf2Name, node=switch2)
+
+    info( '*** Note: you may need to reconfigure the interfaces for '
+          'the Mininet hosts:\n', net.hosts, '\n' )
+
+    net.start()
+    CLI( net )
+    net.stop()
